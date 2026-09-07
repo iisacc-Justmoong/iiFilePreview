@@ -76,8 +76,10 @@ const DetailField detailFields[] = {
     {"region", &AuthorDetails::region, 160}, {"city", &AuthorDetails::city, 160}
 };
 
+QJsonObject detailsJson(const AuthorDetails& details);
 AuthorDetails readDetails(const QJsonObject& json)
 {
+    require(QJsonDocument(json).toJson(QJsonDocument::Compact).size() <= 65536, "details.size");
     AuthorDetails details;
     QStringList keys{"links", "identifiers"};
     for (const auto& field : detailFields) {
@@ -98,14 +100,17 @@ AuthorDetails readDetails(const QJsonObject& json)
             const auto item = entry.toObject();
             if (QString(key) == "links") {
                 knownKeys(item, {"relation", "label", "url"}, "links.fields");
+                const auto url = httpsUrl(text(item, "url", 2048, true), "links.url", true);
+                require(url.toString(QUrl::FullyEncoded).size() <= 2048, "links.url");
                 details.links.append({text(item, "relation", 40, true), text(item, "label", 160),
-                    httpsUrl(text(item, "url", 2048, true), "links.url", true)});
+                    url});
             } else {
                 knownKeys(item, {"scheme", "value"}, "identifiers.fields");
                 details.identifiers.append({text(item, "scheme", 40, true), text(item, "value", 256, true)});
             }
         }
     }
+    require(QJsonDocument(detailsJson(details)).toJson(QJsonDocument::Compact).size() <= 65536, "details.size");
     return details;
 }
 
@@ -218,12 +223,13 @@ std::optional<FileAuthor> FileAuthor::fromIisaccAccount(const QJsonObject& accou
 {
     if (error) error->clear();
     try {
-        require(QJsonDocument(account).toJson(QJsonDocument::Compact).size() <= 32768, "account.size");
+        require(QJsonDocument(account).toJson(QJsonDocument::Compact).size() <= 131072, "account.size");
         AuthorMetadata data;
         data.serviceOrigin = serviceOrigin(origin);
         require(capturedAt.isValid(), "capturedAt");
         data.capturedAt = capturedAt.toUTC();
         data.account = readAccount(account, data.serviceOrigin, false);
+        data.details = readDetails(object(account, "authorDetails", false));
         return FileAuthor(std::move(data));
     } catch (const InvalidField& invalid) {
         finishError(error, invalid);
@@ -236,7 +242,7 @@ std::optional<FileAuthor> FileAuthor::fromIisaccAppSession(const QJsonObject& re
 {
     if (error) error->clear();
     try {
-        require(QJsonDocument(response).toJson(QJsonDocument::Compact).size() <= 65536, "response.size");
+        require(QJsonDocument(response).toJson(QJsonDocument::Compact).size() <= 196608, "response.size");
         require((!response.contains("error") || response.value("error").isNull())
             && (!response.contains("challenge") || response.value("challenge").isNull()), "response.state");
         auto author = fromIisaccAccount(object(response, "account"), origin, capturedAt, error);
@@ -271,6 +277,10 @@ std::optional<FileAuthor> FileAuthor::fromJson(const QJsonObject& json, QString*
 }
 
 const AuthorMetadata& FileAuthor::metadata() const noexcept { return m_metadata; }
+QJsonObject FileAuthor::toIisaccProfileUpdate() const
+{
+    return {{"displayName", m_metadata.account.displayName}, {"authorDetails", detailsJson(m_metadata.details)}};
+}
 bool FileAuthor::setMetadata(const AuthorMetadata& metadata, QString* error)
 {
     if (error) error->clear();

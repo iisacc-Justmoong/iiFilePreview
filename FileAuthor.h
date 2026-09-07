@@ -8,7 +8,8 @@ namespace iiFileProvider {
 
 enum class SocietyCloudMembership { Free, Plus, Pro, Enterprise };
 
-// The six public fields of iisacc.com's account snapshot. No authentication claim.
+// Identity fields of iisacc.com's account snapshot. authorDetails maps separately
+// to AuthorMetadata::details to keep the file schema unchanged. No authentication claim.
 struct IisaccAccount
 {
     QString sub;
@@ -115,6 +116,9 @@ public:
     [[nodiscard]] QString displayLabel() const;
     // Schema v1 contains no credentials, session registry IDs or authentication claims.
     [[nodiscard]] QJsonObject toJson() const;
+    // Editable account fields only, for PATCH /Account/Profile/Author. This is an
+    // explicit payload export; it does not authenticate, upload or alter any file.
+    [[nodiscard]] QJsonObject toIisaccProfileUpdate() const;
     [[nodiscard]] const std::optional<AuthorLoginSession>& loginSession() const noexcept;
     [[nodiscard]] const std::optional<AuthenticationToken>& authenticationToken() const noexcept;
     [[nodiscard]] bool setAuthenticationToken(AuthenticationToken token, QString* error = nullptr);

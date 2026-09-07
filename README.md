@@ -1,6 +1,6 @@
 # iiFileProvider
 
-C++20과 Qt 6.8.3 Core를 사용하는 버전 0.2.0의 동적 라이브러리이다. iisacc.com 계정 모델을 확장한 `FileAuthor`가 파일 작성자의 신원·상세 프로필·기여 정보·작성 디바이스를 기록하고, `AuthenticationToken`이 별도의 런타임 인증 토큰을 보유한다. 파일 읽기·쓰기, 로그인 HTTP 요청과 JWT 서명 검증은 이 객체의 역할에 포함되지 않는다.
+C++20과 Qt 6.8.3 Core를 사용하는 버전 0.2.1의 동적 라이브러리이다. iisacc.com 계정 모델을 확장한 `FileAuthor`가 파일 작성자의 신원·상세 프로필·기여 정보·작성 디바이스를 기록하고, `AuthenticationToken`이 별도의 런타임 인증 토큰을 보유한다. 파일 읽기·쓰기, 로그인 HTTP 요청과 JWT 서명 검증은 이 객체의 역할에 포함되지 않는다.
 
 공개 저장소는 [iisacc-Justmoong/iiFileProvider](https://github.com/iisacc-Justmoong/iiFileProvider)이다. 2026-09-07에 헤더·네임스페이스·CMake 패키지·공유 라이브러리·설치 경로의 SDK 식별자를 `iiFileProvider`로 통일했다. 소비자는 아래의 새 헤더와 CMake 타깃을 사용하고 기존 빌드 캐시를 다시 구성해야 한다.
 
@@ -83,7 +83,7 @@ ctest --test-dir build/consumer/build -C Release --output-on-failure
 기본 설치 경로에 `include/`의 umbrella·작성자·인증 토큰·export 헤더, `lib/`의 공유 라이브러리, `lib/cmake/iiFileProvider/`의 CMake 패키지, `share/iiFileProvider/`의 README와 계약 문서가 생성된다. 비공개 `JsonContract.h`는 설치하지 않는다. Windows 공유 라이브러리 실행 파일은 `bin/`에 설치된다. 소비자에게 C++20 및 `Qt6::Core` 링크 요구 사항을 전달한다. Qt를 묶어서 복사하지 않으며 설치된 Qt 런타임이 필요하다. 공유 라이브러리의 설치 RPATH는 링크에 사용한 외부 라이브러리 경로를 포함한다.
 
 ```cmake
-find_package(iiFileProvider 0.2.0 CONFIG REQUIRED)
+find_package(iiFileProvider 0.2.1 CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE iiFileProvider::iiFileProvider)
 ```
 
@@ -98,3 +98,17 @@ iiFileProvider의 자체 작성 코드와 문서는 GNU Affero General Public Li
 
 Qt를 포함한 외부 라이브러리와 별도 고지가 있는 서드파티 코드는 각자의 라이선스를
 유지한다. 이 프로젝트의 라이선스 선언은 해당 서드파티 라이선스를 대체하지 않는다.
+
+## 계정 프로필 동기화
+
+`fromIisaccAccount()`와 `fromIisaccAppSession()`는 iisacc.com의 `account.authorDetails`를 파일 작성자의
+`metadata().details`에 반영한다. `toIisaccProfileUpdate()`는 웹 서비스가 허용하는 표시 이름과 작성자
+프로필만 명시적으로 내보낸다. 인증 토큰과 파일별 귀속 정보는 계정 업데이트에 포함되지 않는다.
+
+```cpp
+const auto update = author->toIisaccProfileUpdate();
+// The host authenticates and sends update to PATCH /Account/Profile/Author.
+```
+
+계정 측 모델과 API는 서비스의 `docs/ACCOUNT_AUTHORS.md`, 파일 모델은
+[FILE_AUTHOR_CONTRACT.md](docs/FILE_AUTHOR_CONTRACT.md)에 정의되어 있다.

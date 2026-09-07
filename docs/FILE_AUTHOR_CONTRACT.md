@@ -1,13 +1,13 @@
 # 파일 작성자와 인증 토큰 계약
 
-2026-09-07 `/Volumes/Storage/Workspace/Service/iisacc.com`의 현재 작업 트리를 관측하여 작성했다. 웹 서비스에는 별도로 진행 중인 미커밋 계정·세션 변경이 포함되어 있다. 아래는 로컬 구현의 데이터 계약이며 운영 배포나 실제 계정 조회를 확인했다는 의미가 아니다. 서비스 소스나 사용자 레코드는 이 SDK 작업에서 변경하지 않는다.
+2026-09-07 iisacc.com의 계정 모델과 맞춘 로컬 구현 계약이다. 0.2.1부터 서버의 `account_profiles.author_details`와 `account.authorDetails`를 파일의 `details`에 대응시킨다. 운영 배포나 실제 운영 사용자 조회를 확인했다는 의미가 아니다.
 
 ## 관측한 사용자 모델
 
 | 서비스 파일 | 확인한 필드와 조건 |
 | --- | --- |
 | `backend/providers/accounts/cognito.js`, `verifiedAccount()` | 서버가 JWT를 검증하고 `email_verified === true`일 때 정규화한 `email`, 안정적인 `sub`를 반환 |
-| `src/lib/server/auth/snapshot.js`, `publicAccountSnapshot()` | 공개 account는 `sub`, `email`, `displayName`, `userId`, `societyCloudMembership`, `avatarUrl` 여섯 필드 |
+| `src/lib/server/auth/snapshot.js`, `publicAccountSnapshot()` | 공개 account는 `sub`, `email`, `displayName`, `userId`, `societyCloudMembership`, `avatarUrl`, `authorDetails` 일곱 필드 |
 | `backend/app/services/accounts/profile_service.rb`, `present()` | `account_profiles[verified_sub]`의 이름·User ID·아바타·멤버십을 조회. 비밀번호 설정·마케팅 동의·약관 시각은 내부 정보 |
 | `backend/app/services/accounts/registration_service.rb` | User ID는 `@[a-z0-9_]{3,30}`이며 등록·동의 시각과 비밀번호 설정 여부를 별도로 보관 |
 | `backend/app/services/accounts/society_cloud_membership.rb` | 멤버십 값은 정확히 `Free`, `Plus`, `Pro`, `Enterprise` |
@@ -37,7 +37,7 @@
 | `contactEmail`, `phoneNumber` | 작성자 연락용 이메일·전화 문자열. 계정 이메일과 독립적이며 연락 동의나 검증 상태를 뜻하지 않음 |
 | `locale`, `timeZone` | locale 태그 형식과 Qt가 인식하는 시간대 ID. 빈 값 허용 |
 | `countryCode`, `region`, `city` | 대문자 2자 국가 코드 형식·지역·도시. IP나 기기 정보에서 추정하지 않음 |
-| `links[]` | 최대 32개 `{relation, label, url}`. 종류 40자·표시명 160자·HTTPS URL 2,048자 |
+| `links[]` | 최대 32개 `{relation, label, url}`. 종류 40자·표시명 160자·FullyEncoded HTTPS URL 2,048자 |
 | `identifiers[]` | 최대 32개 `{scheme, value}`. 종류 40자·값 256자. ORCID·ISNI 등 외부 ID를 명시하며 진위는 확인하지 않음 |
 | `FileAttribution.roles[]` | 최대 16개, 각 40자, 중복 없는 역할 문자열. 기본 빈 배열이며 creator/editor/translator 등 실제 기여를 명시 |
 | `credit`, `copyrightNotice` | 크레딧과 저작권 표시, 각 1,024자 |
@@ -47,17 +47,18 @@
 | `serviceOrigin`, `capturedAt` | 명시적인 HTTPS 서비스 origin과 해당 account snapshot을 확보한 시각. 필수 |
 | `AuthorDevice` | 아래의 앱 보고 작성 환경. 선택적이며 하드웨어 인증을 뜻하지 않음 |
 
-이름·연락처·소속·기여 정보의 선택적 필드는 계정에 실제 존재한다고 주장하지 않는다. 기본은 빈 값이며 호스트가 확보한 정보만 추가한다. 실명 검증, 이메일 인증 boolean, 관리자 여부, 자동 생성한 파일 작성 시각은 넣지 않는다. 표시 라벨은 displayName → User ID → email 순서이다.
+이름·연락처·소속 필드는 계정의 선택적 작성자 프로필이다. 기본은 빈 값이며 본인이 입력한 정보만 저장한다. 파일별 기여 정보는 계정 상세 프로필과 분리한다. 실명 검증, 이메일 인증 boolean, 관리자 여부, 자동 생성한 파일 작성 시각은 넣지 않는다. 표시 라벨은 displayName → User ID → email 순서이다.
 
 앱 디바이스는 서버와 같은 `id`(lowercase SHA-256 64자리), `type`(`pc` 또는 `tablet`), `name`(80자), `platform`(40자), `osVersion`(80자), `appId`(128자), `appVersion`(40자)이다. 모두 필수이며 OS만으로 form factor를 추론하지 않는다. 디바이스 ID는 호스트가 이미 해시한 식별자만 받으며 실제 머신 ID를 자동 조회하지 않는다.
 
 ## 명시적 입력 어댑터
 
-- `fromIisaccAccount(account, serviceOrigin, capturedAt)`는 공개 account 객체를 읽는다. `sub`·email이 없는 부분 프로필은 거절하고, 내부 필드와 알 수 없는 추가 필드는 복사하지 않는다. 오래된 account에서 누락된 선택 필드는 빈 값/Free/null로 구성한다.
+- `fromIisaccAccount(account, serviceOrigin, capturedAt)`는 공개 account 객체를 읽는다. `sub`·email이 없는 부분 프로필은 거절하고, 내부 필드와 알 수 없는 추가 필드는 복사하지 않는다. `account.authorDetails`를 `metadata().details`로 검증해 읽는다. 오래된 account에서 누락된 선택 필드는 빈 값/Free/null로 구성한다. 명시적인 null/잘못된 authorDetails는 거절한다.
+- `toIisaccProfileUpdate()`는 `{displayName, authorDetails}`를 반환한다. 서버 `PATCH /Account/Profile/Author`에 보낼 명시적 payload이며, 신원·멤버십·파일 귀속·디바이스·세션·인증 토큰을 내보내지 않는다. 실제 HTTP 전송과 인증은 호스트가 담당한다.
 - `fromIisaccAppSession(response, serviceOrigin, capturedAt)`는 account에 더해 `session.id`, `client: app`, `current: true`, 모든 device 필드와 세 시각을 요구한다. `createdAt <= lastSeenAt <= capturedAt < expiresAt`를 검사하고 디바이스를 작성 환경으로 복사한다. 세션 생성 시각을 파일 작성 시각으로 사용하지 않는다.
 - `fromJson(metadata)`는 아래의 schemaVersion 1 파일 메타데이터만 읽는다. 이때 토큰과 로그인 세션은 항상 비어 있다.
 
-모든 입력에서 필드의 JSON 타입을 먼저 검사한다. 숫자를 문자열로 바꾸거나 null을 빈 이름으로 바꾸지 않는다. 문자열은 NFC·trim 후 code point 개수를 제한하며 제어 문자·줄/문단 구분자를 거절한다. biography의 LF만 허용한다. 시간 문자열에는 `Z` 또는 `±HH:MM`이 필요하며 UTC ISO 8601 밀리초로 저장한다. account 입력은 32 KiB, 앱 응답은 64 KiB, 파일 메타데이터는 128 KiB 이하이다. 크기는 compact JSON의 UTF-8 바이트 기준이다.
+모든 입력에서 필드의 JSON 타입을 먼저 검사한다. 숫자를 문자열로 바꾸거나 null을 빈 이름으로 바꾸지 않는다. 문자열은 NFC·trim 후 code point 개수를 제한하며 제어 문자·줄/문단 구분자를 거절한다. biography의 LF만 허용한다. 시간 문자열에는 `Z` 또는 `±HH:MM`이 필요하며 UTC ISO 8601 밀리초로 저장한다. authorDetails/details는 64 KiB, account 입력은 128 KiB, 앱 응답은 192 KiB, 파일 메타데이터는 128 KiB 이하이다. 크기는 compact JSON의 UTF-8 바이트 기준이다.
 
 서비스 origin에는 사용자정보·경로·query·fragment를 허용하지 않으며 마지막 `/`와 기본 HTTPS 포트를 정규화한다. 계정 아바타는 정확한 서버 경로만 허용한다. 상세 프로필의 외부 링크·라이선스 URL에는 HTTPS만 허용한다. 이 SDK는 URL에 접속하거나 이미지를 다운로드하지 않는다.
 
@@ -126,3 +127,11 @@ Qt Core의 JSON, Unicode, QUrl, QDateTime, QTimeZone을 재사용한다. 기존 
 토큰·로그인 세션·활성 편집자 문맥은 덤프에 없다. 파일 읽기는 active author를 비우므로 이전 작성자의 신원을 새 편집에 빌려 쓰지 않는다. host가 작성자를 지정하지 않은 변경은 lastAuthor:null로 기록한다. 첫 기여 시각은 파일의 원래 생성 시각으로 추론하지 않는다. 여러 작업을 하나의 파일 트랜잭션으로 묶을 때 실패·no-op 여부를 판정한 뒤 recordChange를 호출하며, 저장에 실패하면 문서와 이 값 객체를 함께 롤백해야 한다.
 
 `tests/authorship.cpp`와 설치 소비자는 즉시 덤프·기여자 선택·JSON 왕복·토큰 제외·타입 오류·시계 역행·실패 원자성을 검증한다.
+
+## 서버 모델과의 대응 검증
+
+서버 문서 `docs/ACCOUNT_AUTHORS.md` 및 합성 샘플 `docs/contracts/author-account.json`과 함께 관리한다.
+SDK 샘플은 `tests/fixtures/iisacc-account.json`이다. 필드명·길이·타입·UTF-8 크기 한도 변경 시 양쪽의
+정규화·부분 수정·토큰 제외·왕복 검증을 같이 갱신한다. 서버에서 빠진 작성자 필드는 기존 값 유지,
+빈 문자열/배열은 명시적 제거이다. SDK export는 모든 편집 필드를 담으므로 전체 프로필 갱신에 해당한다.
+계정 업데이트가 기존 파일이나 활성 작성자를 자동으로 덮어쓰지 않으며, 호스트가 새 스냅샷을 적용한다.

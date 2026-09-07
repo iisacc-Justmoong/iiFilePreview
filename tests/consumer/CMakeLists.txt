@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 project(iiFileProviderInstalledConsumer LANGUAGES CXX)
 
-find_package(iiFileProvider 0.2.0 CONFIG REQUIRED)
+find_package(iiFileProvider 0.2.1 CONFIG REQUIRED)
 find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Test)
 add_executable(iiFileProvider_installed_consumer ../hello_world.cpp)
 target_link_libraries(iiFileProvider_installed_consumer PRIVATE iiFileProvider::iiFileProvider)

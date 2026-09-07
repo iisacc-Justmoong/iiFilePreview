@@ -1,6 +1,7 @@
 #include <iiFileProvider.h>
 
 #include <QtCore/QDebug>
+#include <QtCore/QFile>
 #include <QtCore/QJsonArray>
 #include <QtCore/QJsonDocument>
 #include <QtCore/QJsonObject>
@@ -49,6 +50,126 @@ class AuthorContractTest final : public QObject
 {
     Q_OBJECT
 private slots:
+    void pairedAccountDetails()
+    {
+        QFile fixture(QFINDTESTDATA("fixtures/iisacc-account.json"));
+        QVERIFY(fixture.open(QIODevice::ReadOnly));
+        const auto snapshot = QJsonDocument::fromJson(fixture.readAll()).object();
+        QString error;
+        auto author = FileAuthor::fromIisaccAccount(snapshot, origin, captured, &error);
+        QVERIFY2(author.has_value(), qPrintable(error));
+        QCOMPARE(author->toJson().value("details"), snapshot.value("authorDetails"));
+        auto response = appSession();
+        response["account"] = snapshot;
+        auto appAuthor = FileAuthor::fromIisaccAppSession(response, origin, captured, &error);
+        QVERIFY2(appAuthor.has_value(), qPrintable(error));
+        QCOMPARE(appAuthor->toJson().value("details"), snapshot.value("authorDetails"));
+        QVERIFY(!appAuthor->metadata().attribution.createdAt.isValid());
+    }
+
+    void profileUpdateHasOnlyEditableAccountFields()
+    {
+        auto author = FileAuthor::fromIisaccAppSession(appSession(), origin, captured);
+        QVERIFY(author);
+        QVERIFY(author->setAuthenticationToken(token()));
+        auto metadata = author->metadata();
+        metadata.details.fullName = "Studio Author";
+        metadata.attribution.documentId = "private-document-id";
+        metadata.attribution.roles = {"editor"};
+        QVERIFY(author->setMetadata(metadata));
+        const auto update = author->toIisaccProfileUpdate();
+        QCOMPARE(update.keys(), QStringList({"authorDetails", "displayName"}));
+        QCOMPARE(update.value("authorDetails"), author->toJson().value("details"));
+        const auto bytes = QJsonDocument(update).toJson();
+        QVERIFY(!bytes.contains("private-document-id"));
+        QVERIFY(!bytes.contains(QByteArray(43, 's')));
+        QVERIFY(!bytes.contains(QByteArray(32, 'b')));
+        auto updatedAccount = account();
+        updatedAccount["displayName"] = update["displayName"];
+        updatedAccount["authorDetails"] = update["authorDetails"];
+        auto loaded = FileAuthor::fromIisaccAccount(updatedAccount, origin, captured);
+        QVERIFY(loaded);
+        QCOMPARE(loaded->toIisaccProfileUpdate(), update);
+        QVERIFY(!loaded->authenticationToken());
+        QVERIFY(!loaded->loginSession());
+        QVERIFY(loaded->metadata().attribution.roles.isEmpty());
+    }
+
+    void invalidAccountAuthorDetails_data()
+    {
+        QTest::addColumn<QJsonValue>("details");
+        QTest::newRow("null") << QJsonValue(QJsonValue::Null);
+        QTest::newRow("array") << QJsonValue(QJsonArray{});
+        QTest::newRow("scalar") << QJsonValue("invalid");
+        QTest::newRow("unknown") << QJsonValue(QJsonObject{{"refreshToken", "sentinel"}});
+        QTest::newRow("phone-type") << QJsonValue(QJsonObject{{"phoneNumber", 7}});
+        QTest::newRow("name-control") << QJsonValue(QJsonObject{{"fullName", "a\nb"}});
+        QTest::newRow("name-limit") << QJsonValue(QJsonObject{{"fullName", QString(161, 'x')}});
+        QTest::newRow("bad-email") << QJsonValue(QJsonObject{{"contactEmail", "not-an-email"}});
+        QTest::newRow("bad-locale") << QJsonValue(QJsonObject{{"locale", "ko_KR"}});
+        QTest::newRow("bad-zone") << QJsonValue(QJsonObject{{"timeZone", "Mars/Nowhere"}});
+        QTest::newRow("bad-country") << QJsonValue(QJsonObject{{"countryCode", "kr"}});
+        QTest::newRow("link-credential") << QJsonValue(QJsonObject{{"links", QJsonArray{QJsonObject{{"relation", "site"}, {"url", "https://user:secret@example.org"}}}}});
+        QTest::newRow("http-link") << QJsonValue(QJsonObject{{"links", QJsonArray{QJsonObject{{"relation", "site"}, {"url", "http://example.org"}}}}});
+        QTest::newRow("identifier-null") << QJsonValue(QJsonObject{{"identifiers", QJsonArray{QJsonObject{{"scheme", "studio"}, {"value", QJsonValue::Null}}}}});
+    }
+
+    void invalidAccountAuthorDetails()
+    {
+        QFETCH(QJsonValue, details);
+        auto snapshot = account();
+        snapshot["authorDetails"] = details;
+        QString error;
+        QVERIFY(!FileAuthor::fromIisaccAccount(snapshot, origin, captured, &error));
+        QVERIFY(!error.isEmpty());
+        QVERIFY(!error.contains("sentinel"));
+    }
+
+    void richAccountBudgetsAndNormalization()
+    {
+        QJsonArray links;
+        for (int i = 0; i < 32; ++i)
+            links.append(QJsonObject{{"relation", "portfolio"}, {"url", "https://example.org/" + QString(1500, 'a')}});
+        auto snapshot = account();
+        snapshot["authorDetails"] = QJsonObject{{"fullName", "  e\u0301  "},
+            {"contactEmail", "  STUDIO@EXAMPLE.ORG  "}, {"links", links},
+            {"biography", "First line\nSecond line"}, {"timeZone", "UTC+09:00"}};
+        QVERIFY(QJsonDocument(snapshot).toJson(QJsonDocument::Compact).size() > 32768);
+        auto author = FileAuthor::fromIisaccAccount(snapshot, origin, captured);
+        QVERIFY(author);
+        QCOMPARE(author->metadata().details.fullName, QString::fromUtf8("é"));
+        QCOMPARE(author->metadata().details.contactEmail, QString("studio@example.org"));
+        auto response = appSession(); response["account"] = snapshot;
+        QVERIFY(FileAuthor::fromIisaccAppSession(response, origin, captured));
+        QVERIFY(FileAuthor::fromJson(author->toJson()));
+        links.append(links.first());
+        snapshot["authorDetails"] = QJsonObject{{"links", links}};
+        QVERIFY(!FileAuthor::fromIisaccAccount(snapshot, origin, captured));
+        links.removeLast();
+        for (auto value : links) value = QJsonObject{{"relation", "site"}, {"url", "https://example.org/" + QString(2029, 'a')}};
+        snapshot["authorDetails"] = QJsonObject{{"links", links}};
+        QVERIFY(!FileAuthor::fromIisaccAccount(snapshot, origin, captured));
+        snapshot["authorDetails"] = QJsonObject{};
+        snapshot["internalPadding"] = QString(131072, 'x');
+        QVERIFY(!FileAuthor::fromIisaccAccount(snapshot, origin, captured));
+    }
+
+    void normalizedDetailsBudgetIncludesDefaultFields()
+    {
+        QJsonArray links;
+        for (int i = 0; i < 32; ++i)
+            links.append(QJsonObject{{"relation", "p"}, {"url", "https://example.org/" + QString(1990, 'x')}});
+        const QJsonObject details{{"links", links}};
+        QVERIFY(QJsonDocument(details).toJson(QJsonDocument::Compact).size() <= 65536);
+        auto author = FileAuthor::fromIisaccAccount(account(), origin, captured);
+        auto json = author->toJson();
+        json["details"] = details;
+        QVERIFY(!FileAuthor::fromJson(json));
+        auto snapshot = account();
+        snapshot["authorDetails"] = details;
+        QVERIFY(!FileAuthor::fromIisaccAccount(snapshot, origin, captured));
+    }
+
     void mapsCurrentAccount()
     {
         auto author = FileAuthor::fromIisaccAccount(account(), origin, captured);
@@ -336,7 +457,7 @@ private slots:
     void accountAndAppSizeAndStateLimits()
     {
         auto json = account();
-        json["ignored"] = QString(33000, 'x');
+        json["ignored"] = QString(131073, 'x');
         QVERIFY(!FileAuthor::fromIisaccAccount(json, origin, captured));
         auto response = appSession();
         response["error"] = QJsonObject{{"code", "unauthenticated"}};
