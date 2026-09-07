@@ -2,9 +2,17 @@ cmake_minimum_required(VERSION 3.24)
 project(iiFileProviderInstalledConsumer LANGUAGES CXX)
 
 find_package(iiFileProvider 0.1.0 CONFIG REQUIRED)
+find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Test)
 add_executable(iiFileProvider_installed_consumer ../hello_world.cpp)
 target_link_libraries(iiFileProvider_installed_consumer PRIVATE iiFileProvider::iiFileProvider)
 set_target_properties(iiFileProvider_installed_consumer PROPERTIES CXX_EXTENSIONS OFF)
 
 enable_testing()
 add_test(NAME iiFileProvider.installed_consumer COMMAND iiFileProvider_installed_consumer)
+
+# Compile the author contract through the installed headers and imported shared target.
+add_executable(iiFileProvider_installed_author_contract ../author_contract.cpp)
+target_link_libraries(iiFileProvider_installed_author_contract PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
+set_target_properties(iiFileProvider_installed_author_contract PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
+add_test(NAME iiFileProvider.installed_author_contract COMMAND iiFileProvider_installed_author_contract)
+set_tests_properties(iiFileProvider.installed_author_contract PROPERTIES TIMEOUT 30)

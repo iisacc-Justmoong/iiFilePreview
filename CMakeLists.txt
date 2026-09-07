@@ -17,7 +17,8 @@ include(CMakePackageConfigHelpers)
 include(CTest)
 find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Core)
 
-add_library(iiFileProvider SHARED iiFileProvider.h iiFileProvider.cpp)
+add_library(iiFileProvider SHARED iiFileProvider.h iiFileProvider.cpp
+    Export.h AuthenticationToken.h AuthenticationToken.cpp FileAuthor.h FileAuthor.cpp JsonContract.h)
 add_library(iiFileProvider::iiFileProvider ALIAS iiFileProvider)
 target_compile_features(iiFileProvider PUBLIC cxx_std_20)
 target_compile_definitions(iiFileProvider PRIVATE IIFILEPROVIDER_BUILDING_LIBRARY)
@@ -36,6 +37,12 @@ set_target_properties(iiFileProvider PROPERTIES
 )
 
 if(BUILD_TESTING)
+    find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Test)
+    add_executable(iiFileProvider_author_contract tests/author_contract.cpp)
+    target_link_libraries(iiFileProvider_author_contract PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
+    set_target_properties(iiFileProvider_author_contract PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
+    add_test(NAME iiFileProvider.author_contract COMMAND iiFileProvider_author_contract)
+    set_tests_properties(iiFileProvider.author_contract PROPERTIES TIMEOUT 30)
     add_executable(iiFileProvider_hello_world tests/hello_world.cpp)
     target_link_libraries(iiFileProvider_hello_world PRIVATE iiFileProvider::iiFileProvider)
     set_target_properties(iiFileProvider_hello_world PROPERTIES CXX_EXTENSIONS OFF)
@@ -58,7 +65,7 @@ install(TARGETS iiFileProvider EXPORT iiFileProviderTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-install(FILES iiFileProvider.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT iiFileProviderTargets NAMESPACE iiFileProvider:: DESTINATION "${_package_dir}")
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/iiFileProviderConfig.cmake"
@@ -66,3 +73,4 @@ install(FILES
     DESTINATION "${_package_dir}"
 )
 install(FILES README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider")
+install(FILES docs/FILE_AUTHOR_CONTRACT.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider/docs")
