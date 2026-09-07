@@ -115,3 +115,14 @@ Qt Core의 JSON, Unicode, QUrl, QDateTime, QTimeZone을 재사용한다. 기존 
 `tests/author_contract.cpp`는 실제 서버 필드 형태를 본뜬 합성 fixture로 account/앱 응답, rich metadata 왕복, 이전 모델 호환, 잘못된 필드, Unicode code point 경계, 내부 정보 제외, 세션 만료, 토큰 바인딩·시간 범위·redaction과 실패의 원자성을 검증한다. 같은 계약을 별도 설치 소비자에서 다시 컴파일·실행하여 공개 헤더와 공유 라이브러리 export를 확인한다. 실제 계정·운영 토큰·과금 요청은 사용하지 않는다.
 
 2026-09-07 macOS arm64 / AppleClang 21 / Qt 6.8.3의 Release 빌드와 설치를 완료했다. 소스 CTest 2/2, 별도 설치 소비자 CTest 2/2, 기존 Society의 재빌드 및 CTest 2/2가 통과했다. 작성자 Qt Test 출력은 소스·설치본 각각 39 passed(초기화/정리 포함)이다. 설치된 공개 헤더·문서의 소스 일치, 공개 심볼 export, 런타임의 Qt Test/Network 의존성 부재를 확인했다. 상세 실행 로그는 로컬 `build/author-install.log`, `build/society-regression.log`, `build/author-artifact-audit.json`에 있다.
+
+
+## 0.2.0 공통 파일 기여 기록
+
+`Authorship`은 iiCSMIDI·iiGeneralDocument·iiSharedCanvas의 파일 메타데이터에 공통으로 쓰는 값 객체이다. `setAuthor()`는 host가 제공한 FileAuthor의 공개 JSON만 복사하고 변경된 프로필을 즉시 기록한다. `recordChange()`는 성공한 실제 변경마다 revision과 기여 시각을 갱신하고 즉시 compact JSON을 생성한다. `dump()`는 미리 갱신된 바이트를 반환하며 타이머·save·소멸자를 기다리지 않는다. 같은 프로필 선택은 revision을 바꾸지 않으며 활성 편집자 문맥만 설정한다.
+
+저장 키는 `iisacc:authorship`, 스키마는 `{schemaVersion:1, revision:"unsigned decimal", modifiedAt, authors:[{key,author,firstChangedAt,lastChangedAt}], lastAuthor}`이다. key는 서비스 origin과 sub의 SHA-256이며 author는 FileAuthor JSON이다. 최대 256명·1 MiB로 제한하고 알 수 없는 필드·중복 ID·잘못된 참조나 시각을 거절한다. 시계가 뒤로 가도 최신 수정 시각은 감소하지 않는다. 오류는 상태를 변경하지 않는다.
+
+토큰·로그인 세션·활성 편집자 문맥은 덤프에 없다. 파일 읽기는 active author를 비우므로 이전 작성자의 신원을 새 편집에 빌려 쓰지 않는다. host가 작성자를 지정하지 않은 변경은 lastAuthor:null로 기록한다. 첫 기여 시각은 파일의 원래 생성 시각으로 추론하지 않는다. 여러 작업을 하나의 파일 트랜잭션으로 묶을 때 실패·no-op 여부를 판정한 뒤 recordChange를 호출하며, 저장에 실패하면 문서와 이 값 객체를 함께 롤백해야 한다.
+
+`tests/authorship.cpp`와 설치 소비자는 즉시 덤프·기여자 선택·JSON 왕복·토큰 제외·타입 오류·시계 역행·실패 원자성을 검증한다.

@@ -3,6 +3,7 @@
 #include <QtCore/QString>
 #include "Export.h"
 #include "FileAuthor.h"
+#include "Authorship.h"
 
 namespace iiFileProvider {
 

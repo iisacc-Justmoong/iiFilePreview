@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(iiFileProvider VERSION 0.1.0 LANGUAGES CXX)
+project(iiFileProvider VERSION 0.2.0 LANGUAGES CXX)
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     if(DEFINED ENV{HOME} AND NOT "$ENV{HOME}" STREQUAL "")
@@ -18,7 +18,8 @@ include(CTest)
 find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Core)
 
 add_library(iiFileProvider SHARED iiFileProvider.h iiFileProvider.cpp
-    Export.h AuthenticationToken.h AuthenticationToken.cpp FileAuthor.h FileAuthor.cpp JsonContract.h)
+    Export.h AuthenticationToken.h AuthenticationToken.cpp FileAuthor.h FileAuthor.cpp JsonContract.h
+    Authorship.h Authorship.cpp)
 add_library(iiFileProvider::iiFileProvider ALIAS iiFileProvider)
 target_compile_features(iiFileProvider PUBLIC cxx_std_20)
 target_compile_definitions(iiFileProvider PRIVATE IIFILEPROVIDER_BUILDING_LIBRARY)
@@ -38,6 +39,10 @@ set_target_properties(iiFileProvider PROPERTIES
 
 if(BUILD_TESTING)
     find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Test)
+    add_executable(iiFileProvider_authorship tests/authorship.cpp)
+    target_link_libraries(iiFileProvider_authorship PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
+    set_target_properties(iiFileProvider_authorship PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
+    add_test(NAME iiFileProvider.authorship COMMAND iiFileProvider_authorship)
     add_executable(iiFileProvider_author_contract tests/author_contract.cpp)
     target_link_libraries(iiFileProvider_author_contract PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
     set_target_properties(iiFileProvider_author_contract PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
@@ -65,7 +70,7 @@ install(TARGETS iiFileProvider EXPORT iiFileProviderTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h Authorship.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT iiFileProviderTargets NAMESPACE iiFileProvider:: DESTINATION "${_package_dir}")
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/iiFileProviderConfig.cmake"
