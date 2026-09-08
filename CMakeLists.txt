@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(iiFileProvider VERSION 0.2.1 LANGUAGES CXX)
+project(iiFileProvider VERSION 0.4.0 LANGUAGES CXX)
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     if(DEFINED ENV{HOME} AND NOT "$ENV{HOME}" STREQUAL "")
@@ -19,7 +19,7 @@ find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Core)
 
 add_library(iiFileProvider SHARED iiFileProvider.h iiFileProvider.cpp
     Export.h AuthenticationToken.h AuthenticationToken.cpp FileAuthor.h FileAuthor.cpp JsonContract.h
-    Authorship.h Authorship.cpp)
+    Authorship.h Authorship.cpp FileLink.h FileLink.cpp)
 add_library(iiFileProvider::iiFileProvider ALIAS iiFileProvider)
 target_compile_features(iiFileProvider PUBLIC cxx_std_20)
 target_compile_definitions(iiFileProvider PRIVATE IIFILEPROVIDER_BUILDING_LIBRARY)
@@ -33,7 +33,8 @@ set_target_properties(iiFileProvider PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
     VERSION ${PROJECT_VERSION}
-    SOVERSION 0
+    # Authorship 0.4 adds file-level storage; old value layouts must not load this ABI.
+    SOVERSION 0.4
     INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
@@ -43,6 +44,11 @@ if(BUILD_TESTING)
     target_link_libraries(iiFileProvider_authorship PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
     set_target_properties(iiFileProvider_authorship PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
     add_test(NAME iiFileProvider.authorship COMMAND iiFileProvider_authorship)
+    add_executable(iiFileProvider_file_links tests/file_links.cpp)
+    target_link_libraries(iiFileProvider_file_links PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
+    set_target_properties(iiFileProvider_file_links PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
+    add_test(NAME iiFileProvider.file_links COMMAND iiFileProvider_file_links)
+    set_tests_properties(iiFileProvider.file_links PROPERTIES TIMEOUT 30)
     add_executable(iiFileProvider_author_contract tests/author_contract.cpp)
     target_link_libraries(iiFileProvider_author_contract PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
     set_target_properties(iiFileProvider_author_contract PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
@@ -70,7 +76,7 @@ install(TARGETS iiFileProvider EXPORT iiFileProviderTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h Authorship.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h Authorship.h FileLink.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT iiFileProviderTargets NAMESPACE iiFileProvider:: DESTINATION "${_package_dir}")
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/iiFileProviderConfig.cmake"
@@ -79,3 +85,4 @@ install(FILES
 )
 install(FILES README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider")
 install(FILES docs/FILE_AUTHOR_CONTRACT.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider/docs")
+install(FILES docs/FILE_LINKS.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider/docs")

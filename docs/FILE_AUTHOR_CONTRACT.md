@@ -118,15 +118,42 @@ Qt Core의 JSON, Unicode, QUrl, QDateTime, QTimeZone을 재사용한다. 기존 
 2026-09-07 macOS arm64 / AppleClang 21 / Qt 6.8.3의 Release 빌드와 설치를 완료했다. 소스 CTest 2/2, 별도 설치 소비자 CTest 2/2, 기존 Society의 재빌드 및 CTest 2/2가 통과했다. 작성자 Qt Test 출력은 소스·설치본 각각 39 passed(초기화/정리 포함)이다. 설치된 공개 헤더·문서의 소스 일치, 공개 심볼 export, 런타임의 Qt Test/Network 의존성 부재를 확인했다. 상세 실행 로그는 로컬 `build/author-install.log`, `build/society-regression.log`, `build/author-artifact-audit.json`에 있다.
 
 
-## 0.2.0 공통 파일 기여 기록
+## 공통 파일 기여 기록과 영구 편집자 명단
 
 `Authorship`은 iiCSMIDI·iiGeneralDocument·iiSharedCanvas의 파일 메타데이터에 공통으로 쓰는 값 객체이다. `setAuthor()`는 host가 제공한 FileAuthor의 공개 JSON만 복사하고 변경된 프로필을 즉시 기록한다. `recordChange()`는 성공한 실제 변경마다 revision과 기여 시각을 갱신하고 즉시 compact JSON을 생성한다. `dump()`는 미리 갱신된 바이트를 반환하며 타이머·save·소멸자를 기다리지 않는다. 같은 프로필 선택은 revision을 바꾸지 않으며 활성 편집자 문맥만 설정한다.
 
-저장 키는 `iisacc:authorship`, 스키마는 `{schemaVersion:1, revision:"unsigned decimal", modifiedAt, authors:[{key,author,firstChangedAt,lastChangedAt}], lastAuthor}`이다. key는 서비스 origin과 sub의 SHA-256이며 author는 FileAuthor JSON이다. 최대 256명·1 MiB로 제한하고 알 수 없는 필드·중복 ID·잘못된 참조나 시각을 거절한다. 시계가 뒤로 가도 최신 수정 시각은 감소하지 않는다. 오류는 상태를 변경하지 않는다.
+최초로 성공한 `setAuthor()`가 최초 편집자 한 명을 기록한다. 이후 처음 등장한 계정은 첫 등록 순서대로 참여자 목록 끝에 추가한다. `firstEditor()`는 `std::optional<FileAuthor>`, `participants()`는 최초 편집자를 제외한 `QList<FileAuthor>` 복사본을 반환한다. 아직 작성자를 등록하지 않은 파일은 최초 편집자가 없고 참여자는 빈 목록이다. 작성자 미지정 변경이나 파일 읽기로 신원을 추론하지 않는다.
 
-토큰·로그인 세션·활성 편집자 문맥은 덤프에 없다. 파일 읽기는 active author를 비우므로 이전 작성자의 신원을 새 편집에 빌려 쓰지 않는다. host가 작성자를 지정하지 않은 변경은 lastAuthor:null로 기록한다. 첫 기여 시각은 파일의 원래 생성 시각으로 추론하지 않는다. 여러 작업을 하나의 파일 트랜잭션으로 묶을 때 실패·no-op 여부를 판정한 뒤 recordChange를 호출하며, 저장에 실패하면 문서와 이 값 객체를 함께 롤백해야 한다.
+한 번 기록된 계정과 역할은 같은 `Authorship`의 모든 편집 API에서 유지되며 삭제·초기화·역할 교체 API가 없다. 명단의 내부 기준은 추가만 가능한 단일 `authors` 목록이다. 그 첫 항목이 최초 편집자이고 나머지가 참여자이므로 역할 목록이 서로 어긋나지 않는다. 동일 계정 재선택·프로필 갱신·활성 편집자 해제·시계 역행·직렬화와 복원에도 최초 편집자와 참여자 순서·최초 기여 시각을 보존한다. 프로필 갱신은 표시 정보와 최근 기여 시각을 갱신하며, 신원이 달라지면 기존 신원을 남기고 새 참여자로 추가한다. 반환된 프로필이나 JSON 복사본을 수정해도 원본 명단은 바뀌지 않는다.
 
-`tests/authorship.cpp`와 설치 소비자는 즉시 덤프·기여자 선택·JSON 왕복·토큰 제외·타입 오류·시계 역행·실패 원자성을 검증한다.
+저장 키는 `iisacc:authorship`, 현재 0.4.0의 스키마는 아래의 필드를 가진다. 작성자 프로필 내부의 `FileAuthor::SchemaVersion`은 기존 1을 유지한다. 파일 자체의 이름·URL 쌍은 [파일 링크 계약](FILE_LINKS.md)에 정의한다.
+
+| 필드 | 저장 의미 |
+| --- | --- |
+| `schemaVersion` | 숫자 `3` (`Authorship::SchemaVersion`) |
+| `revision` | unsigned decimal 문자열 |
+| `modifiedAt` | 최신 UTC 기여 시각, 빈 이력에서는 null |
+| `authors` | 등록 순서의 `{key, author, firstChangedAt, lastChangedAt}` 목록 |
+| `firstEditor` | `authors` 첫 항목의 key. 명단이 비어 있으면 null |
+| `participants` | `authors`의 두 번째 항목부터 끝까지의 key 목록. 최초 편집자는 제외 |
+| `lastAuthor` | 최근 변경의 계정 key 또는 작성자 미지정 변경의 null |
+| `links` | 선택적인 파일 링크 `{name, url}` 목록. 링크가 없으면 빈 배열 |
+
+key는 정규화한 서비스 origin과 sub를 LF로 이어 붙인 값의 SHA-256이며 author는 FileAuthor JSON이다. 이메일·표시 이름이 같아도 sub 또는 서비스가 다르면 별도 참여자이고, 동일 origin/sub의 프로필 변경은 중복을 만들지 않는다. `firstEditor`와 `participants`는 프로필을 중복 저장하지 않고 `authors`를 참조한다. 스키마 2·3 읽기는 두 필드를 필수로 검사하며 최초 편집자 교체·최초 편집자의 참여자 중복·누락/중복/알 수 없는 참여자·순서 불일치를 거절한다.
+
+스키마 1·2는 각 버전의 기존 필드만 허용하는 엄격한 검사를 유지한다. 최초 등록 순서였던 `authors`의 첫 항목과 나머지 항목을 그대로 구분하고 빈 링크 목록을 추가하여 스키마 3으로 복원한다. 같은 기여 시각이나 시계 역행을 이유로 정렬하지 않으며, revision·프로필·기여 시각을 바꾸지 않고 활성 편집자도 설정하지 않는다. 이후 덤프는 스키마 3이며 확장된 `MaximumBytes`와 Authorship 값 배치도 반영해야 하므로, 소비자는 iiFileProvider 0.4.0 이상의 헤더·라이브러리로 다시 빌드해야 한다. 공유 라이브러리 ABI 식별자는 `0.4`이다. 개별 파일 형식의 외부 메타데이터 봉투 버전과 이 JSON의 스키마 버전은 별개이다.
+
+인원 한도는 최초 편집자를 포함한 최대 256명이다. 이전 입력 한도는 스키마 1의 compact UTF-8 JSON 1 MiB, 스키마 2의 1 MiB + 32 KiB를 유지한다. 현재 스키마 3의 `MaximumBytes`는 선택적인 링크 목록을 포함하여 2 MiB이다. 기존 한도까지 채운 파일도 전체 명단을 보존하며, 기존 항목을 생략하는 마이그레이션은 하지 않는다. 한도를 넘는 새 등록이나 프로필 갱신은 `std::length_error`로 거절하며 이전 항목을 지우거나 명단을 잘라내지 않는다. 잘못된 시각과 revision 소진도 변경을 원자적으로 거절하며 활성 편집자·기존 덤프를 보존한다. 알 수 없는 필드·중복 ID·잘못된 참조나 시각은 읽기에서 거절한다. 시계가 뒤로 가도 최신 수정 시각은 감소하지 않는다.
+
+FileAuthor의 런타임 토큰·로그인 세션·활성 편집자 문맥은 덤프와 작성자 조회 복사본에 없다. 명시적으로 입력한 파일 링크 URL의 query/userinfo는 URL의 일부로 보존한다. `clearActiveAuthor()`는 현재 편집 문맥만 해제하며 영구 명단과 파일 링크는 변경하지 않는다. 파일 읽기는 active author를 비우므로 이전 작성자의 신원을 새 편집에 빌려 쓰지 않는다. host가 작성자를 지정하지 않은 변경은 lastAuthor:null로 기록한다. 첫 기여 시각은 파일의 원래 생성 시각으로 추론하지 않는다. 여러 작업을 하나의 파일 트랜잭션으로 묶을 때 실패·no-op 여부를 판정한 뒤 recordChange를 호출하며, 저장에 실패하면 문서와 이 값 객체를 함께 롤백해야 한다.
+
+이 값 객체의 보존 계약은 호스트가 같은 파일의 이력을 이어 사용하고 덤프를 저장·복원하는 경로에 적용된다. 복사·대입은 트랜잭션 롤백을 위해 유지한다. 외부에서 파일 메타데이터를 삭제하거나 별도의 빈/오래된 `Authorship` 값으로 교체하는 행위를 막는 변조 방지 기능이나 여러 이력의 병합 기능은 아니다. 호스트는 성공한 기존 편집의 명단을 일반 내용 되돌리기로 교체하지 않아야 한다.
+
+`tests/authorship.cpp`와 설치 소비자는 즉시 덤프·기여자 선택·JSON 왕복·토큰 제외·타입 오류·시계 역행·실패 원자성에 더해, 최초 편집자 고정·참여자 순서·동일 계정 중복 방지·프로필 갱신·서비스별 신원 구분·조회 복사본 격리·실제 메타데이터 파일의 저장/재열기·스키마 1 호환·잘못된 역할 참조·인원 및 용량 한도에서 전체 명단 보존을 검증한다. 영구 명단은 기존 Qt Core의 JSON·목록·해시와 FileAuthor 검증을 재사용하는 파일 도메인 규칙이므로 신규 외부 라이브러리나 상위 앱 의존성을 추가하지 않았다.
+
+2026-09-08 macOS arm64 / Qt 6.8.3에서 0.3.0 Release 빌드, 소스 CTest 3/3 및 `build/stage/` 설치 패키지만 사용하는 별도 소비자 CTest 3/3이 통과했다. 소스·설치본의 Authorship Qt Test는 각각 38 passed(초기화/정리 포함)이며, 정확히 1 MiB인 스키마 1 파일의 256명 전체 복원도 포함한다. 공개 헤더·문서의 설치본 일치와 두 조회 API의 공유 라이브러리 export를 확인했다. 실행 로그는 `build/editor-roster-install.log`와 `build/editor-roster-installed-files.json`이다.
+
+기존 iiCSMIDI·iiGeneralDocument의 Authorship, iiSharedCanvas의 Authorship·IiscCodec·DocumentFile·AudioPersistence 실행 파일 6개도 0.3.0 라이브러리를 로드하여 모두 통과했다. 이 검사는 기존 실행 파일의 런타임 회귀이며, 소비자 전체의 재빌드나 배포를 뜻하지 않는다. 각 프로세스가 로드한 `build/stage/lib/libiiFileProvider.0.3.0.dylib` 경로와 결과는 `build/editor-roster-consumer-regression.json`에 기록했다.
 
 ## 서버 모델과의 대응 검증
 
