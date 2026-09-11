@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(iiFileProvider VERSION 0.4.0 LANGUAGES CXX)
+project(iiFileProvider VERSION 0.5.0 LANGUAGES CXX)
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
     if(DEFINED ENV{HOME} AND NOT "$ENV{HOME}" STREQUAL "")
@@ -16,14 +16,24 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 include(CTest)
 find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Core)
+function(_iifileprovider_find_sqlite)
+    set(CMAKE_FIND_FRAMEWORK LAST)
+    find_package(SQLite3 3.26 REQUIRED)
+endfunction()
+_iifileprovider_find_sqlite()
+if(NOT TARGET SQLite3::SQLite3)
+    add_library(SQLite3::SQLite3 ALIAS SQLite::SQLite3)
+endif()
 
 add_library(iiFileProvider SHARED iiFileProvider.h iiFileProvider.cpp
     Export.h AuthenticationToken.h AuthenticationToken.cpp FileAuthor.h FileAuthor.cpp JsonContract.h
-    Authorship.h Authorship.cpp FileLink.h FileLink.cpp)
+    Authorship.h Authorship.cpp FileLink.h FileLink.cpp File.h File.cpp AtomicFileCommit.cpp
+    Database.h Database.cpp StagedFile.h StagedFile.cpp)
 add_library(iiFileProvider::iiFileProvider ALIAS iiFileProvider)
 target_compile_features(iiFileProvider PUBLIC cxx_std_20)
 target_compile_definitions(iiFileProvider PRIVATE IIFILEPROVIDER_BUILDING_LIBRARY)
 target_link_libraries(iiFileProvider PUBLIC Qt6::Core)
+target_link_libraries(iiFileProvider PRIVATE SQLite3::SQLite3)
 target_include_directories(iiFileProvider PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -33,12 +43,21 @@ set_target_properties(iiFileProvider PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
     VERSION ${PROJECT_VERSION}
-    # Authorship 0.4 adds file-level storage; old value layouts must not load this ABI.
+    # Storage APIs are additive; preserve the existing 0.4 value-type ABI.
     SOVERSION 0.4
     INSTALL_RPATH_USE_LINK_PATH TRUE
 )
 
 if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    add_test(NAME iiFileProvider.dependency_direction
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/dependency_direction.py)
+    add_executable(iiFileProvider_database tests/database.cpp)
+    target_link_libraries(iiFileProvider_database PRIVATE iiFileProvider::iiFileProvider)
+    add_test(NAME iiFileProvider.database COMMAND iiFileProvider_database)
+    add_executable(iiFileProvider_file_crud tests/file_crud.cpp)
+    target_link_libraries(iiFileProvider_file_crud PRIVATE iiFileProvider::iiFileProvider)
+    add_test(NAME iiFileProvider.file_crud COMMAND iiFileProvider_file_crud)
     find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Test)
     add_executable(iiFileProvider_authorship tests/authorship.cpp)
     target_link_libraries(iiFileProvider_authorship PRIVATE iiFileProvider::iiFileProvider Qt6::Test)
@@ -76,7 +95,7 @@ install(TARGETS iiFileProvider EXPORT iiFileProviderTargets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
-install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h Authorship.h FileLink.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(FILES iiFileProvider.h Export.h AuthenticationToken.h FileAuthor.h Authorship.h FileLink.h File.h Database.h StagedFile.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 install(EXPORT iiFileProviderTargets NAMESPACE iiFileProvider:: DESTINATION "${_package_dir}")
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/iiFileProviderConfig.cmake"
@@ -86,3 +105,5 @@ install(FILES
 install(FILES README.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider")
 install(FILES docs/FILE_AUTHOR_CONTRACT.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider/docs")
 install(FILES docs/FILE_LINKS.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider/docs")
+
+install(FILES docs/FILE_CRUD.md DESTINATION "${CMAKE_INSTALL_DATADIR}/iiFileProvider/docs")

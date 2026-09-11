@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 project(iiFileProviderInstalledConsumer LANGUAGES CXX)
 
-find_package(iiFileProvider 0.4.0 CONFIG REQUIRED)
+find_package(iiFileProvider 0.5.0 CONFIG REQUIRED)
 find_package(Qt6 6.8.3 EXACT REQUIRED COMPONENTS Test)
 add_executable(iiFileProvider_installed_consumer ../hello_world.cpp)
 target_link_libraries(iiFileProvider_installed_consumer PRIVATE iiFileProvider::iiFileProvider)
@@ -25,3 +25,9 @@ target_link_libraries(iiFileProvider_installed_file_links PRIVATE iiFileProvider
 set_target_properties(iiFileProvider_installed_file_links PROPERTIES AUTOMOC ON CXX_EXTENSIONS OFF)
 add_test(NAME iiFileProvider.installed_file_links COMMAND iiFileProvider_installed_file_links)
 set_tests_properties(iiFileProvider.installed_file_links PROPERTIES TIMEOUT 30)
+
+foreach(contract file_crud database)
+    add_executable(installed_${contract} ../${contract}.cpp)
+    target_link_libraries(installed_${contract} PRIVATE iiFileProvider::iiFileProvider)
+    add_test(NAME installed.${contract} COMMAND installed_${contract})
+endforeach()
