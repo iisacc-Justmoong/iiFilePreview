@@ -1,16 +1,16 @@
-# iiFilePreview
+# iiFileProvider
 
 C++20과 Qt 6.8.3 Core를 사용하는 버전 0.1.0의 동적 라이브러리 플레이스홀더이다. 현재 API는 정확히 `Hello world!`를 반환하는 함수 하나이며, SDK 이름이 암시하는 도메인 기능은 구현하지 않았다.
 
 ## 공개 API
 
 ```cpp
-#include <iiFilePreview.h>
+#include <iiFileProvider.h>
 
-const QString message = iiFilePreview::helloWorld();
+const QString message = iiFileProvider::helloWorld();
 ```
 
-`[[nodiscard]] QString iiFilePreview::helloWorld()`는 호출할 때마다 `Hello world!`를 반환한다. 공개 헤더와 구현은 소스 루트에 함께 배치한다. 외부 의존성은 기존 Qt 6.8.3 Core이며, 신규 외부 라이브러리를 도입하지 않았다. Qt의 사용 및 배포 조건은 설치된 Qt 라이선스에 따른다.
+`[[nodiscard]] QString iiFileProvider::helloWorld()`는 호출할 때마다 `Hello world!`를 반환한다. 공개 헤더와 구현은 소스 루트에 함께 배치한다. 외부 의존성은 기존 Qt 6.8.3 Core이며, 신규 외부 라이브러리를 도입하지 않았다. Qt의 사용 및 배포 조건은 설치된 Qt 라이선스에 따른다.
 
 ## 빌드, 테스트, 설치
 
@@ -22,7 +22,7 @@ CMake 3.24 이상, C++20 컴파일러 및 Qt 6.8.3이 필요하다. macOS에서�
 
 단독 프로젝트로 구성할 때만 기본 설치 경로를 설정하므로 `add_subdirectory()`로 포함하는 상위 프로젝트의 설치 경로는 유지한다.
 
-스크립트는 `build/`에서 Release 빌드 및 CTest를 실행하고, 기본 경로 `~/.local/SDK/iiFilePreview`에 설치한 뒤 `build/consumer/build/`에서 설치된 CMake 패키지만 사용하는 별도 실행 파일을 빌드하고 테스트한다. 라이브러리 테스트와 설치 소비자 테스트는 반환 문자열, C++20 컴파일 설정, Qt 6.8.3 헤더 버전과 런타임 버전을 검사한다.
+스크립트는 `build/`에서 Release 빌드 및 CTest를 실행하고, 기본 경로 `~/.local/SDK/iiFileProvider`에 설치한 뒤 `build/consumer/build/`에서 설치된 CMake 패키지만 사용하는 별도 실행 파일을 빌드하고 테스트한다. 라이브러리 테스트와 설치 소비자 테스트는 반환 문자열, C++20 컴파일 설정, Qt 6.8.3 헤더 버전과 런타임 버전을 검사한다.
 
 설치 소비자 구성에는 현재 설치 경로의 패키지 디렉터리를 명시하므로 `INSTALL_PREFIX`를 변경해 재실행해도 이전 패키지 캐시를 사용하지 않는다.
 
@@ -30,7 +30,7 @@ CMake 3.24 이상, C++20 컴파일러 및 Qt 6.8.3이 필요하다. macOS에서�
 
 ```sh
 QT_PREFIX_PATH="/Volumes/Storage/Qt/6.8.3/macos" \
-INSTALL_PREFIX="$HOME/.local/SDK/iiFilePreview" \
+INSTALL_PREFIX="$HOME/.local/SDK/iiFileProvider" \
 ./install.sh
 ```
 
@@ -43,18 +43,18 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 cmake --install build --config Release
 cmake -S tests/consumer -B build/consumer/build -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_PREFIX_PATH="$HOME/.local/SDK/iiFilePreview;/Volumes/Storage/Qt/6.8.3/macos"
+  -DCMAKE_PREFIX_PATH="$HOME/.local/SDK/iiFileProvider;/Volumes/Storage/Qt/6.8.3/macos"
 cmake --build build/consumer/build --config Release
 ctest --test-dir build/consumer/build -C Release --output-on-failure
 ```
 
 ## 설치 결과와 소비
 
-기본 설치 경로에 `include/iiFilePreview.h`, `lib/`의 공유 라이브러리, `lib/cmake/iiFilePreview/`의 CMake 패키지, `share/iiFilePreview/README.md`가 생성된다. Windows 공유 라이브러리 실행 파일은 `bin/`에 설치된다. 소비자에게 C++20 및 `Qt6::Core` 링크 요구 사항을 전달한다. Qt를 묶어서 복사하지 않으며 설치된 Qt 런타임이 필요하다. 공유 라이브러리의 설치 RPATH는 링크에 사용한 외부 라이브러리 경로를 포함한다.
+기본 설치 경로에 `include/iiFileProvider.h`, `lib/`의 공유 라이브러리, `lib/cmake/iiFileProvider/`의 CMake 패키지, `share/iiFileProvider/README.md`가 생성된다. Windows 공유 라이브러리 실행 파일은 `bin/`에 설치된다. 소비자에게 C++20 및 `Qt6::Core` 링크 요구 사항을 전달한다. Qt를 묶어서 복사하지 않으며 설치된 Qt 런타임이 필요하다. 공유 라이브러리의 설치 RPATH는 링크에 사용한 외부 라이브러리 경로를 포함한다.
 
 ```cmake
-find_package(iiFilePreview 0.1.0 CONFIG REQUIRED)
-target_link_libraries(my_app PRIVATE iiFilePreview::iiFilePreview)
+find_package(iiFileProvider 0.1.0 CONFIG REQUIRED)
+target_link_libraries(my_app PRIVATE iiFileProvider::iiFileProvider)
 ```
 
 `CMAKE_PREFIX_PATH`에 SDK 설치 경로와 Qt 경로를 포함한다. 빌드·테스트·설치까지만 제공하며 커밋, 원격 업로드 또는 배포 단계는 없다.
@@ -63,7 +63,7 @@ target_link_libraries(my_app PRIVATE iiFilePreview::iiFilePreview)
 
 SPDX-License-Identifier: AGPL-3.0-only
 
-iiFilePreview의 자체 작성 코드와 문서는 GNU Affero General Public License v3.0 전용으로
+iiFileProvider의 자체 작성 코드와 문서는 GNU Affero General Public License v3.0 전용으로
 배포한다. 전체 조건은 [LICENSE](LICENSE)를 따른다.
 
 Qt를 포함한 외부 라이브러리와 별도 고지가 있는 서드파티 코드는 각자의 라이선스를

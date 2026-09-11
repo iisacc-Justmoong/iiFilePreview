@@ -9,8 +9,8 @@
 #    define IIFILEPREVIEW_EXPORT Q_DECL_IMPORT
 #endif
 
-namespace iiFilePreview {
+namespace iiFileProvider {
 
 [[nodiscard]] IIFILEPREVIEW_EXPORT QString helloWorld();
 
-} // namespace iiFilePreview
+} // namespace iiFileProvider

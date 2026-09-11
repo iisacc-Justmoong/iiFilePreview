@@ -1,4 +1,4 @@
-#include <iiFilePreview.h>
+#include <iiFileProvider.h>
 
 #include <QtCore/QtGlobal>
 
@@ -14,7 +14,7 @@ int main()
         std::cerr << "Unexpected Qt runtime version: " << qVersion() << '\n';
         return 1;
     }
-    const QString message = iiFilePreview::helloWorld();
+    const QString message = iiFileProvider::helloWorld();
     std::cout << message.toStdString() << '\n';
     return message == QStringLiteral("Hello world!") ? 0 : 1;
 }
